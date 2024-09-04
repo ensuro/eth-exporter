@@ -16,3 +16,6 @@ NODE_WEBSOCKET_URL = env.str("NODE_WEBSOCKET_URL", None)
 # NODE_HTTPS_URL = env.str("NODE_HTTPS_URL", None)
 
 METRICS_PORT = env.int("METRICS_PORT", 8000)
+
+
+ABIS_PATH = env.str("ABIS_PATH", None)

@@ -9,6 +9,7 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from web3.providers.persistent import WebSocketProvider
 
 from . import config, metrics
+from .chaindata import ContractCall
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,19 @@ async def blocks_worker(w3, queue):
         metrics.LAST_BLOCK.set(block.number)
         metrics.BLOCKS_PROCESSED.inc()
 
+        call = ContractCall(
+            "SignedBucketRiskModule",
+            "params",
+            [],
+            [
+                "0x43882aDe3Df425D7097f0ca62E8cf08E6bef8777",
+                "0xe64b6B463c3B3Cb3475fb940B64Ef6f946D6F460",
+            ],
+        )
+
+        results = await call(w3)
+        logger.info("Results: %s", "\n".join(str(r) for r in results))
+
         queue.task_done()
 
 
@@ -63,6 +77,10 @@ async def main():
 
     # TODO: at this point we should parse the config and initialize all metrics, to avoid missing metrics:
     # https://prometheus.io/docs/practices/instrumentation/#avoid-missing-metrics
+
+    # Set up the prometheus server
+    prom_server = await start_http_server(port=config.METRICS_PORT)
+    logger.info("Started metrics server on %s", prom_server.url)
 
     async with AsyncWeb3(WebSocketProvider(config.NODE_WEBSOCKET_URL)) as w3:
         # Inject the middleware to track RPC calls with prometheus
@@ -75,16 +93,13 @@ async def main():
         # Create the main consumer
         worker = asyncio.create_task(blocks_worker(w3, blocks_queue))
 
-        # Set up the prometheus server
-        prom_server = await start_http_server(port=config.METRICS_PORT)
-        logger.info("Started metrics server on %s", prom_server.url)
-
         # Run the producer loop forever
-        await main_loop(w3, blocks_queue)
-
-    logger.info("Shutting down")
-    worker.cancel()
-    prom_server.close()
+        try:
+            await asyncio.gather(main_loop(w3, blocks_queue), worker)
+        finally:
+            logger.info("Shutting down")
+            worker.cancel()
+            await prom_server.close()
 
 
 if __name__ == "__main__":
