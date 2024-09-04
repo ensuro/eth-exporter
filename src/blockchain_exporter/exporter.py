@@ -63,6 +63,9 @@ async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: Met
 
 
 async def main():
+    # Monitor some basic asyncio metrics to keep an eye on blocking code
+    metrics.AIOMonitor().start()
+
     blocks_queue = asyncio.Queue()
 
     # Load the metrics definitions, this takes care of initializing the metrics to avoid missing metrics:

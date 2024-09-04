@@ -115,13 +115,6 @@ class ContractCall:
     async def __call__(self, w3, block) -> List[CallResult]:
         calls = []
         for address in self.addresses:
-            logger.info(
-                "Calling %s.%s(%s) on %s",
-                self.contract_type,
-                self.function,
-                ",".join(str(a) for a in self.arguments),
-                address,
-            )
             contract = w3.eth.contract(address=address, abi=self.abi, decode_tuples=True)
             function = contract.functions[self.function](*[arg.value for arg in self.arguments])
             calls.append(function.call(block_identifier=block.number))
