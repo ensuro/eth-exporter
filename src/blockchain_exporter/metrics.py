@@ -1,3 +1,5 @@
+from typing import List, Literal
+
 from prometheus_async.aio import time, track_inprogress
 from prometheus_client import Counter, Gauge, Histogram
 from web3.middleware import Web3Middleware
@@ -24,3 +26,10 @@ class RPCMetricsMiddleware(Web3Middleware):
             return await make_request(method, params)
 
         return middleware
+
+
+def create_metric(name: str, description: str, type: Literal["GAUGE"], labels: List[str] = None):
+    if type == "GAUGE":
+        return Gauge(name, description, labels if labels is not None else [])
+    else:
+        raise NotImplementedError(f"Metric type {type} not implemented yet")

@@ -1,0 +1,30 @@
+calls:
+  # A call that generates several metrics from a struct
+  - contract_type: SignedBucketRiskModule
+    function: params
+    addresses: # we'll perform the same call on all these addresses
+      - "0x3eaB5b880b83607288744F35E778D60d0cd6539f"  # RM_BIZAWAY_BMA
+      - "0x43882aDe3Df425D7097f0ca62E8cf08E6bef8777"  # RM_BLI
+    metrics: # this function returns a struct, we map each value of interest to a metric
+      moc:
+        type: GAUGE
+        description: Margin of conservativism
+        name: rm_moc
+      jrCollRatio:
+        type: GAUGE
+        description: Jr collateralization ratio
+        name: rm_jr_coll_ratio
+
+  # A call that generates a single metric from a scalar value
+  - contract_type: IERC20
+    function: balanceOf
+    arguments:
+      - value: "0xf6b7a278afFbc905b407E01893B287D516016ce0"
+        label: holder
+    addresses:
+      - "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC.e
+    metrics:
+      balance:
+        type: GAUGE
+        description: USDC.e balance
+        name: usdce_balance

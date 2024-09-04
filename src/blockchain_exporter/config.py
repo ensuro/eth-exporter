@@ -19,3 +19,6 @@ METRICS_PORT = env.int("METRICS_PORT", 8000)
 
 
 ABIS_PATH = env.str("ABIS_PATH", None)
+
+
+METRICS_CONFIG_PATH = env.str("METRICS_CONFIG_PATH", None)

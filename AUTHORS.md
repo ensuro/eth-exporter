@@ -1,3 +1,3 @@
 # Contributors
 
-* GnP [g.parrondo@gmail.com](mailto:g.parrondo@gmail.com)
+* Gabriel Parrondo [gabriel@ensuro.co](mailto:gabriel@ensuro.co)
