@@ -1,4 +1,4 @@
-# blockchain-exporter
+# eth-exporter
 
 Prometheus exporter of blockchain data
 
