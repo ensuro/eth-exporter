@@ -6,8 +6,8 @@ from typing import List, Union
 import yaml
 
 from . import config
-from .build_artifacts import ArtifactLibrary
 from .metrics import create_metric
+from .vendor.build_artifacts import ArtifactLibrary
 
 contracts = ArtifactLibrary(config.ABIS_PATH)
 
