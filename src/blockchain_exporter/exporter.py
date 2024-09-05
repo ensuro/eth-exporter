@@ -1,12 +1,13 @@
 import asyncio
 import logging
+import sys
 import time
 from datetime import datetime, timezone
 
 from prometheus_async.aio.web import start_http_server
 from web3 import AsyncWeb3
-from web3.middleware import ExtraDataToPOAMiddleware
-from web3.providers.persistent import WebSocketProvider
+from web3.middleware import ExtraDataToPOAMiddleware, validation
+from web3.providers import AsyncHTTPProvider
 
 from . import config, metrics
 from .chaindata import MetricsConfig
@@ -42,7 +43,7 @@ async def main_loop(w3, queue):
 
 
 async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: MetricsConfig):
-    """Consumer that triggers the calls for each block"""
+    """Consumer that triggers the contract calls for each block"""
     while True:
         block = await queue.get()
 
@@ -76,27 +77,36 @@ async def main():
     prom_server = await start_http_server(port=config.METRICS_PORT)
     logger.info("Started metrics server on %s", prom_server.url)
 
-    async with AsyncWeb3(WebSocketProvider(config.NODE_WEBSOCKET_URL)) as w3:
-        # Inject the middleware to track RPC calls with prometheus
-        w3.middleware_onion.inject(metrics.RPCMetricsMiddleware, layer=0)
+    w3 = AsyncWeb3(AsyncHTTPProvider(config.NODE_HTTPS_URL, cache_allowed_requests=True))
 
-        # Inject the poa middleware if necessary
-        if config.INJECT_POA_MIDDLEWARE:
-            w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+    # Disable method validation to reduce eth_chainId calls
+    validation.METHODS_TO_VALIDATE = []
 
-        # Create the main consumer
-        worker = asyncio.create_task(blocks_worker(w3, blocks_queue, metrics_config))
+    # Inject the middleware to track RPC calls with prometheus
+    w3.middleware_onion.inject(metrics.RPCMetricsMiddleware, layer=0)
+    # Inject the poa middleware if necessary
+    if config.INJECT_POA_MIDDLEWARE:
+        w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
-        # Run the producer loop forever
-        try:
-            await asyncio.gather(main_loop(w3, blocks_queue), worker)
-        finally:
-            logger.info("Shutting down")
-            worker.cancel()
-            await prom_server.close()
+    # Create the main consumer
+    worker = asyncio.create_task(blocks_worker(w3, blocks_queue, metrics_config))
+
+    # Run the producer loop forever
+    try:
+        await asyncio.gather(main_loop(w3, blocks_queue), worker)
+    finally:
+        logger.info("Shutting down")
+        await prom_server.close()
+        worker.cancel()
+
+
+def main_sync():
+    logging.basicConfig(level=config.LOG_LEVEL)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        sys.exit(130)  # 128 + SIGINT
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level="INFO")
-
-    asyncio.run(main())
+    main_sync()
