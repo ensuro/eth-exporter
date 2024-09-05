@@ -4,6 +4,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from prometheus_async.aio import time as prom_time
 from prometheus_async.aio.web import start_http_server
 from web3 import AsyncWeb3
 from web3.middleware import ExtraDataToPOAMiddleware, validation
@@ -55,10 +56,9 @@ async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: Met
 
         metrics.LAST_BLOCK_TIMESTAMP.set(block.timestamp)
         metrics.LAST_BLOCK.set(block.number)
-        metrics.BLOCKS_PROCESSED.inc()
 
         calls = [call(w3, block) for call in metrics_config.calls]
-        await asyncio.gather(*calls)
+        await prom_time(metrics.BLOCK_PROCESSING_HISTOGRAM, asyncio.gather(*calls))
 
         queue.task_done()
 

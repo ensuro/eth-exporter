@@ -2,14 +2,14 @@ import asyncio
 from typing import List, Literal
 
 from prometheus_async.aio import time, track_inprogress
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import Gauge, Histogram
 from web3.middleware import Web3Middleware
 
 # Some basic global metrics
 LAST_BLOCK = Gauge("last_block", "Last block number")
 LAST_BLOCK_TIMESTAMP = Gauge("last_block_timestamp_seconds", "Last block timestamp")
 
-BLOCKS_PROCESSED = Counter("blocks_processed", "Number of blocks processed")
+BLOCK_PROCESSING_HISTOGRAM = Histogram("block_processing_duration_seconds", "Duration of block processing")
 
 RPC_CALLS_HISTOGRAM = Histogram("rpc_calls_duration_seconds", "Duration of rpc calls", ["method"])
 
@@ -56,8 +56,14 @@ class AIOMonitor:
             self.active_tasks.set(len([t for t in asyncio.all_tasks() if not t.done()]))
 
 
+_metrics = {}
+
+
 def create_metric(name: str, description: str, type: Literal["GAUGE"], labels: List[str] = None):
     if type == "GAUGE":
-        return Gauge(name, description, labels if labels is not None else [])
+        if name not in _metrics:
+            _metrics[name] = Gauge(name, description, labels if labels is not None else [])
+        # TODO: validate description and labels match the existing metric
+        return _metrics[name]
     else:
         raise NotImplementedError(f"Metric type {type} not implemented yet")

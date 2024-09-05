@@ -2,7 +2,7 @@ calls:
   # A call that generates several metrics from a struct
   - contract_type: SignedBucketRiskModule
     function: params
-    addresses: # we'll perform the same call on all these addresses
+    addresses: &riskmodules  # we'll perform the same call on all these addresses
       - "0x3eaB5b880b83607288744F35E778D60d0cd6539f"  # RM_BIZAWAY_BMA
       - "0x43882aDe3Df425D7097f0ca62E8cf08E6bef8777"  # RM_BLI
     metrics: # this function returns a struct, we map each value of interest to a metric
@@ -15,11 +15,21 @@ calls:
         description: Jr collateralization ratio
         name: rm_jr_coll_ratio
 
+  - contract_type: SignedBucketRiskModule
+    function: activeExposure
+    addresses: *riskmodules
+    metrics:
+      activeExposure:
+        type: GAUGE
+        description: Active exposure
+        name: rm_active_exposure
+
   # A call that generates a single metric from a scalar value
-  - contract_type: IERC20
+  - &usdce_balance
+    contract_type: IERC20
     function: balanceOf
     arguments:
-      - value: "0xf6b7a278afFbc905b407E01893B287D516016ce0"
+      - value: "0xf6b7a278afFbc905b407E01893B287D516016ce0" # CF_LENDER_KOALA_VAULT
         label: holder
     addresses:
       - "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC.e
@@ -28,3 +38,11 @@ calls:
         type: GAUGE
         description: USDC.e balance
         name: usdce_balance
+  - <<: *usdce_balance
+    arguments:
+      - value: "0x936DAC0eeA5e4E90B8384B96d1aA6284Ce106f71"  # CF_LENDER_BLI
+        label: holder
+  - <<: *usdce_balance
+    arguments:
+      - value: "0x48Ff8B1493c6A3545Aea3F0812f1303E2f958bF4"  # CF_LENDER_GETSPOT
+        label: holder
