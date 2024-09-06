@@ -3,8 +3,8 @@ calls:
   - contract_type: SignedBucketRiskModule
     function: params
     addresses: &riskmodules  # we'll perform the same call on all these addresses
-      - "0x3eaB5b880b83607288744F35E778D60d0cd6539f"  # RM_BIZAWAY_BMA
-      - "0x43882aDe3Df425D7097f0ca62E8cf08E6bef8777"  # RM_BLI
+      - RM_BIZAWAY_BMA
+      - RM_BLI
     metrics: # this function returns a struct, we map each value of interest to a metric
       moc:
         type: GAUGE
@@ -29,10 +29,11 @@ calls:
     contract_type: IERC20
     function: balanceOf
     arguments:
-      - value: "0xf6b7a278afFbc905b407E01893B287D516016ce0" # CF_LENDER_KOALA_VAULT
+      - value: CF_LENDER_KOALA_VAULT
+        type: address
         label: holder
     addresses:
-      - "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC.e
+      - USDC
     metrics:
       balance:
         type: GAUGE
@@ -40,9 +41,11 @@ calls:
         name: usdce_balance
   - <<: *usdce_balance
     arguments:
-      - value: "0x936DAC0eeA5e4E90B8384B96d1aA6284Ce106f71"  # CF_LENDER_BLI
+      - value: CF_LENDER_BLI
+        type: address
         label: holder
   - <<: *usdce_balance
     arguments:
-      - value: "0x48Ff8B1493c6A3545Aea3F0812f1303E2f958bF4"  # CF_LENDER_GETSPOT
+      - value: CF_LENDER_GETSPOT
+        type: address
         label: holder

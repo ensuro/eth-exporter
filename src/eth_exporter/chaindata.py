@@ -7,6 +7,8 @@ import yaml
 
 from . import config
 from .metrics import create_metric
+from .vendor.address_book import Address
+from .vendor.address_book import get_default as get_address_book
 from .vendor.build_artifacts import ArtifactLibrary
 
 contracts = ArtifactLibrary(config.ABIS_PATH)
@@ -15,30 +17,86 @@ contracts = ArtifactLibrary(config.ABIS_PATH)
 logger = logging.getLogger(__name__)
 
 
+class NamedAddress:
+    address: Address
+    name: str
+
+    def __init__(self, value: str):
+        if value.startswith("0x"):
+            # We got an actual address, let's try to get the name for it
+            self.address = Address(value)
+            name = get_address_book().addr_to_name(self.address)
+            if name == self.address:
+                name = f"0x{self.address[2:6]}...{self.address[-4:]}"
+            self.name = name
+        else:
+            self.name = value
+            self.address = get_address_book().name_to_addr(value)
+            if self.address is None:
+                raise ValueError(f"Cannot resolve '{value}' to an address")
+
+    @classmethod
+    def load_list(cls, values: List[str]) -> List["NamedAddress"]:
+        return [cls(value) for value in values]
+
+
 class CallArgument:
-    def __init__(self, value: str, label: str = None, transform: Union[str, None] = None):
+    _types = {}
+
+    def __init__(self, value: str, label: str = None, **kwargs):
         self.value = value
-
-        if transform is not None:
-            raise NotImplementedError("To be implemented")
-
-        self.transform = transform
         self.label = label
+
+    @classmethod
+    def register_type(cls, type: str):
+        def decorator(klass):
+            cls._types[type] = klass
+            return klass
+
+        return decorator
+
+    @classmethod
+    def load(cls, arg: dict) -> "CallArgument":
+        return cls._types.get(arg["type"], cls)(**arg)
+
+    @property
+    def labels(self) -> dict:
+        return {self.label: self.value} if self.label else {}
 
     def __str__(self):
         return self.value
 
 
+@CallArgument.register_type("address")
+class AddressCallArgument(CallArgument):
+    def __init__(self, value: str, label: str = None, **kwargs):
+        super().__init__(value, label, **kwargs)
+        self.address = NamedAddress(value)
+        self.value = self.address.address
+
+    @property
+    def labels(self) -> dict:
+        return (
+            {self.label: self.address.name, f"{self.label}_address": self.address.address}
+            if self.label
+            else {}
+        )
+
+    def __str__(self):
+        return self.address.name
+
+
 @dataclass
 class CallResult:
-    address: str
+    address: Address
     value: Union[int, tuple]
     labels: List[str]
 
 
 class CallMetricDefinition:
     DEFAULT_LABELS = [
-        "address",
+        "contract",
+        "contract_address",
     ]
 
     def __init__(
@@ -79,7 +137,7 @@ class CallMetricDefinition:
         self.labels += call.labels
         self.call = call
         for address in call.addresses:
-            self.metric.labels(address=address, **call.labels)
+            self.metric.labels(contract=address.name, contract_address=address.address, **call.labels)
 
     def update(self, results: List[CallResult]):
         for result in results:
@@ -87,7 +145,11 @@ class CallMetricDefinition:
             if isinstance(value, tuple):
                 # This is a struct, we need to extract the value from a specific field
                 value = getattr(value, self.source)
-            self.metric.labels(address=result.address, **result.labels).set(value)
+            self.metric.labels(
+                contract=result.address.name,
+                contract_address=result.address.address,
+                **result.labels,
+            ).set(value)
 
 
 class ContractCall:
@@ -96,7 +158,7 @@ class ContractCall:
         contract_type: str,
         function: str,
         arguments: List[CallArgument],
-        addresses: List[str],
+        addresses: List[NamedAddress],
     ):
         self.contract_type = contract_type
         self.abi = contracts.get_artifact_by_name(contract_type).abi
@@ -107,7 +169,7 @@ class ContractCall:
 
     @property
     def labels(self):
-        return {arg.label: arg.value for arg in self.arguments if arg.label}
+        return dict(label for arg in self.arguments for label in arg.labels.items())
 
     def bind(self, metric: CallMetricDefinition):
         self.metrics.append(metric)
@@ -115,7 +177,7 @@ class ContractCall:
     async def __call__(self, w3, block) -> List[CallResult]:
         calls = []
         for address in self.addresses:
-            contract = w3.eth.contract(address=address, abi=self.abi, decode_tuples=True)
+            contract = w3.eth.contract(address=address.address, abi=self.abi, decode_tuples=True)
             function = contract.functions[self.function](*[arg.value for arg in self.arguments])
             calls.append(function.call(block_identifier=block.number))
 
@@ -146,8 +208,8 @@ class MetricsConfig:
             contract_call = ContractCall(
                 contract_type=call["contract_type"],
                 function=call["function"],
-                arguments=[CallArgument(**arg) for arg in call.get("arguments", [])],
-                addresses=call["addresses"],
+                arguments=[CallArgument.load(arg) for arg in call.get("arguments", [])],
+                addresses=NamedAddress.load_list(call["addresses"]),
             )
 
             for source, metric in call["metrics"].items():

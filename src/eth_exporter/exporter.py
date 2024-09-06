@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import sys
 import time
@@ -12,6 +13,7 @@ from web3.providers import AsyncHTTPProvider
 
 from . import config, metrics
 from .chaindata import MetricsConfig
+from .vendor import address_book
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,16 @@ async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: Met
         queue.task_done()
 
 
+def load_address_book(path):
+    with open(path, "r") as f:
+        mapping = json.load(f)
+        address_book.setup_default(address_book.AddrToNameAddressBook(mapping))
+
+
 async def main():
+    if config.ADDRESS_BOOK_PATH:
+        load_address_book(config.ADDRESS_BOOK_PATH)
+
     # Monitor some basic asyncio metrics to keep an eye on blocking code
     metrics.AIOMonitor().start()
 

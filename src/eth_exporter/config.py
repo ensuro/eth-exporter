@@ -24,3 +24,5 @@ ABIS_PATH = env.str("ABIS_PATH", None)
 
 
 METRICS_CONFIG_PATH = env.str("METRICS_CONFIG_PATH", None)
+
+ADDRESS_BOOK_PATH = env.str("ADDRESS_BOOK_PATH", None)
