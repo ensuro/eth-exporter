@@ -174,12 +174,16 @@ class ContractCall:
     def bind(self, metric: CallMetricDefinition):
         self.metrics.append(metric)
 
-    async def __call__(self, w3, block) -> List[CallResult]:
+    async def __call__(self, w3, block, sem: asyncio.Semaphore) -> List[CallResult]:
+        async def execute_call(func):
+            async with sem:
+                return await func.call(block_identifier=block.number)
+
         calls = []
         for address in self.addresses:
             contract = w3.eth.contract(address=address.address, abi=self.abi, decode_tuples=True)
             function = contract.functions[self.function](*[arg.value for arg in self.arguments])
-            calls.append(function.call(block_identifier=block.number))
+            calls.append(execute_call(function))
 
         results = []
         for address, result in zip(self.addresses, await asyncio.gather(*calls)):

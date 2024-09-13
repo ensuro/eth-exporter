@@ -47,6 +47,8 @@ async def main_loop(w3, queue):
 
 async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: MetricsConfig):
     """Consumer that triggers the contract calls for each block"""
+    sem = asyncio.Semaphore(config.MAX_CONCURRENT_CALLS)
+
     while True:
         block = await queue.get()
 
@@ -59,7 +61,7 @@ async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: Met
         metrics.LAST_BLOCK_TIMESTAMP.set(block.timestamp)
         metrics.LAST_BLOCK.set(block.number)
 
-        calls = [call(w3, block) for call in metrics_config.calls]
+        calls = [call(w3, block, sem) for call in metrics_config.calls]
         await prom_time(metrics.BLOCK_PROCESSING_HISTOGRAM, asyncio.gather(*calls))
 
         queue.task_done()

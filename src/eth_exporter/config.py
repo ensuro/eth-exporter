@@ -26,3 +26,7 @@ ABIS_PATH = env.str("ABIS_PATH", None)
 METRICS_CONFIG_PATH = env.str("METRICS_CONFIG_PATH", None)
 
 ADDRESS_BOOK_PATH = env.str("ADDRESS_BOOK_PATH", None)
+
+# Limit the number of concurrent calls to the node. Going over 12 is likely to exceed Alchemy's rate
+# limit of 330CU/s on the free tier.
+MAX_CONCURRENT_CALLS = env.int("MAX_CONCURRENT_CALLS", 4)
