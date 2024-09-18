@@ -1,4 +1,17 @@
 services:
+  devcontainer:
+    build:
+      context: .
+
+    command: python -m eth_exporter.exporter
+    env_file: .env
+
+    volumes:
+      - ./samples:/app/samples
+
+    ports:
+      - 8000:8000
+
   prometheus:
     image: prom/prometheus
     container_name: prometheus

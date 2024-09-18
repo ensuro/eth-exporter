@@ -1,0 +1,33 @@
+name: Build and Push Docker Image to Google Artifact Registry
+
+on:
+  push:
+    branches-ignore:
+      - "**"
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Docker image version tag"
+        required: true
+
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Build (@{1}) inputs={0}', tojson(inputs), github.ref_name) || '' }}
+
+env:
+  IMAGE: solid-range-319205/ensuro/eth-exporter
+  REGISTRY_HOSTNAME: us-docker.pkg.dev
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Build and push
+        uses: ensuro/github-actions/build-docker@v1.1
+        with:
+          registry: "${{ env.REGISTRY_HOSTNAME }}"
+          image: "${{ env.IMAGE }}"
+          google_credentials: "${{ secrets.GOOGLE_CREDENTIALS }}"
+          additional_tag: "${{ github.event.inputs.version }}"
