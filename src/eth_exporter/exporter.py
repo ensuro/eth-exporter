@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 
 from prometheus_async.aio import time as prom_time
-from prometheus_async.aio.web import start_http_server
+from prometheus_async.aio.web import start_http_server_in_thread
 from web3 import AsyncWeb3
 from web3.middleware import ExtraDataToPOAMiddleware, validation
 from web3.providers import AsyncHTTPProvider
@@ -87,7 +87,7 @@ async def main():
     metrics_config = MetricsConfig.load_yaml(config.METRICS_CONFIG_PATH)
 
     # Set up the prometheus server
-    prom_server = await start_http_server(port=config.METRICS_PORT)
+    prom_server = start_http_server_in_thread(port=config.METRICS_PORT)
     logger.info("Started metrics server on %s", prom_server.url)
 
     w3 = AsyncWeb3(AsyncHTTPProvider(config.NODE_HTTPS_URL, cache_allowed_requests=True))
@@ -109,7 +109,7 @@ async def main():
         await asyncio.gather(main_loop(w3, blocks_queue), worker)
     finally:
         logger.info("Shutting down")
-        await prom_server.close()
+        prom_server.close()
         worker.cancel()
 
 
