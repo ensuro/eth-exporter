@@ -175,15 +175,19 @@ class ContractCall:
         self.metrics.append(metric)
 
     async def __call__(self, w3, block, sem: asyncio.Semaphore) -> List[CallResult]:
-        async def execute_call(func):
+        async def execute_call(address, func):
             async with sem:
-                return await func.call(block_identifier=block.number)
+                try:
+                    return await func.call(block_identifier=block.number)
+                except Exception as e:
+                    logger.error("Error calling %s.%s: %s", address.name, func, e)
+                    raise
 
         calls = []
         for address in self.addresses:
             contract = w3.eth.contract(address=address.address, abi=self.abi, decode_tuples=True)
             function = contract.functions[self.function](*[arg.value for arg in self.arguments])
-            calls.append(execute_call(function))
+            calls.append(execute_call(address, function))
 
         results = []
         for address, result in zip(self.addresses, await asyncio.gather(*calls)):
