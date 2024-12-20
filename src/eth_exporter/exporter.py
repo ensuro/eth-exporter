@@ -58,11 +58,11 @@ async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: Met
             datetime.fromtimestamp(block.timestamp, tz=timezone.utc).isoformat(),
         )
 
-        metrics.LAST_BLOCK_TIMESTAMP.set(block.timestamp)
-        metrics.LAST_BLOCK.set(block.number)
-
         calls = [call(w3, block, sem) for call in metrics_config.calls]
         await prom_time(metrics.BLOCK_PROCESSING_HISTOGRAM, asyncio.gather(*calls))
+
+        metrics.LAST_BLOCK_TIMESTAMP.set(block.timestamp)
+        metrics.LAST_BLOCK.set(block.number)
 
         queue.task_done()
 
