@@ -6,6 +6,7 @@ from typing import List, Union
 import yaml
 
 from . import config
+from . import multicall3
 from .metrics import create_metric
 from .vendor.address_book import Address
 from .vendor.address_book import get_default as get_address_book
@@ -204,16 +205,54 @@ class ContractCall:
         return f"{self.contract_type}.{self.function}({','.join(arg.value for arg in self.arguments)})"
 
 
+class ContractCallMulticall3(ContractCall):
+    async def __call__(self, w3, block, sem: asyncio.Semaphore) -> List[CallResult]:
+        functions = []
+        for address in self.addresses:
+            contract = w3.eth.contract(address=address.address, abi=self.abi, decode_tuples=True)
+            function = contract.functions[self.function](*[arg.value for arg in self.arguments])
+            functions.append(function)
+
+        errors = 0
+        results = []
+        async with sem:
+            chain_results = await multicall3.aggregate3(w3, functions, block.number)
+
+        for address, function, (success, result) in zip(self.addresses, functions, chain_results):
+            if not success:
+                logger.error("Error calling %s.%s: %s", address.name, function, result)
+                errors += 1
+            else:
+                results.append(CallResult(address=address, value=result, labels=self.labels))
+
+        if errors:
+            raise RuntimeError(f"{errors} errors calling {self.function}")
+
+        for metric in self.metrics:
+            metric.update(results)
+
+        logger.info("%s: updated %s metrics for %s addresses", self, len(self.metrics), len(self.addresses))
+
+        return results
+
+
 @dataclass
 class MetricsConfig:
     calls: List[ContractCall]
+
+    @classmethod
+    def contract_call_class(cls):
+        if config.USE_MULTICALL3:
+            return ContractCallMulticall3
+        else:
+            return ContractCall
 
     @classmethod
     def load(cls, config: dict) -> "MetricsConfig":
         """Load a metrics configuration from a dictionary, usually parsed from a yaml file"""
         calls = []
         for call in config["calls"]:
-            contract_call = ContractCall(
+            contract_call = cls.contract_call_class()(
                 contract_type=call["contract_type"],
                 function=call["function"],
                 arguments=[CallArgument.load(arg) for arg in call.get("arguments", [])],
