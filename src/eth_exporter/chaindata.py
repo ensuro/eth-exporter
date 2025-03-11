@@ -137,8 +137,11 @@ class CallMetricDefinition:
         call.bind(self)
         self.labels += call.labels
         self.call = call
-        for address in call.addresses:
-            self.metric.labels(contract=address.name, contract_address=address.address, **call.labels)
+        if self.type != "GAUGE":
+            # Initializing GAUGE metrics with 0 causes issues for alerting and graphing, better to
+            # have them missing until there's a value
+            for address in call.addresses:
+                self.metric.labels(contract=address.name, contract_address=address.address, **call.labels)
 
     def update(self, results: List[CallResult]):
         for result in results:
