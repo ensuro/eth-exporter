@@ -22,6 +22,8 @@ METRICS_PORT = env.int("METRICS_PORT", 8000)
 
 ABIS_PATH = env.str("ABIS_PATH", None)
 
+USE_MULTICALL3 = env.bool("USE_MULTICALL3", False)
+
 
 METRICS_CONFIG_PATH = env.str("METRICS_CONFIG_PATH", None)
 
