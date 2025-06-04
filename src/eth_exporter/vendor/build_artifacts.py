@@ -1,3 +1,4 @@
+# Copied from ethproto 1.3.5
 """Helper classes to use hardhat build artifacts from python"""
 
 import json
