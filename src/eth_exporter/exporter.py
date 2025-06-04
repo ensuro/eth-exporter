@@ -12,7 +12,7 @@ from web3.middleware import ExtraDataToPOAMiddleware, validation
 from web3.providers import AsyncHTTPProvider
 
 from . import config, metrics
-from .chaindata import MetricsConfig
+from .metric_config import MetricsConfig
 from .vendor import address_book
 
 logger = logging.getLogger(__name__)
