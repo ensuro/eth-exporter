@@ -77,12 +77,16 @@ class MetricsConfig:
     def _load_direct_calls(cls, call_definitions: List[Call]) -> List[ContractCall]:
         calls = []
         for call in call_definitions:
-            contract_call = cls.contract_call_class()(
-                contract_type=call["contract_type"],
-                function=call["function"],
-                arguments=[CallArgument.load(arg) for arg in call.get("arguments", [])],
-                addresses=NamedAddress.load_list(call["addresses"]),
-            )
+            try:
+                contract_call = cls.contract_call_class()(
+                    contract_type=call["contract_type"],
+                    function=call["function"],
+                    arguments=[CallArgument.load(arg) for arg in call.get("arguments", [])],
+                    addresses=NamedAddress.load_list(call["addresses"]),
+                )
+            except Exception:
+                logger.error("Error loading call: %s", call)
+                raise
 
             for source, metric in call["metrics"].items():
                 CallMetricDefinition(
