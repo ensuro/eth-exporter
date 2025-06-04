@@ -12,7 +12,7 @@ from web3.middleware import ExtraDataToPOAMiddleware, validation
 from web3.providers import AsyncHTTPProvider
 
 from . import config, metrics
-from .chaindata import MetricsConfig
+from .metric_config import MetricsConfig
 from .vendor import address_book
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,12 @@ async def blocks_worker(w3: AsyncWeb3, queue: asyncio.Queue, metrics_config: Met
         metrics.LAST_BLOCK_TIMESTAMP.set(block.timestamp)
         metrics.LAST_BLOCK.set(block.number)
 
+        logger.info(
+            "Finished block %s - %s",
+            block.number,
+            datetime.fromtimestamp(block.timestamp, tz=timezone.utc).isoformat(),
+        )
+
         queue.task_done()
 
 
@@ -74,6 +80,16 @@ def load_address_book(path):
 
 
 async def main():
+    logger.info(
+        "Starting eth_exporter with address_book=%s, metrics_port=%s, use_multicall3=%s "
+        "max_block_age=%s, block_commitment_level=%s, max_concurrent_calls=%s",
+        config.ADDRESS_BOOK_PATH,
+        config.METRICS_PORT,
+        config.USE_MULTICALL3,
+        config.MAX_BLOCK_AGE,
+        config.BLOCK_COMMITMENT_LEVEL,
+        config.MAX_CONCURRENT_CALLS,
+    )
     if config.ADDRESS_BOOK_PATH:
         load_address_book(config.ADDRESS_BOOK_PATH)
 

@@ -3,10 +3,7 @@ import logging
 from dataclasses import dataclass
 from typing import List, Union
 
-import yaml
-
-from . import config
-from . import multicall3
+from . import config, multicall3
 from .metrics import create_metric
 from .vendor.address_book import Address
 from .vendor.address_book import get_default as get_address_book
@@ -37,8 +34,8 @@ class NamedAddress:
                 raise ValueError(f"Cannot resolve '{value}' to an address")
 
     @classmethod
-    def load_list(cls, values: List[str]) -> List["NamedAddress"]:
-        return [cls(value) for value in values]
+    def load_list(cls, values: List[str] | str) -> List["NamedAddress"]:
+        return [cls(value) for value in values] if isinstance(values, list) else [cls(values)]
 
 
 class CallArgument:
@@ -58,7 +55,7 @@ class CallArgument:
 
     @classmethod
     def load(cls, arg: dict) -> "CallArgument":
-        return cls._types.get(arg["type"], cls)(**arg)
+        return cls._types.get(arg.get("type"), cls)(**arg)
 
     @property
     def labels(self) -> dict:
@@ -205,7 +202,7 @@ class ContractCall:
         return results
 
     def __str__(self):
-        return f"{self.contract_type}.{self.function}({','.join(arg.value for arg in self.arguments)})"
+        return f"{self.contract_type}.{self.function}({','.join(str(arg.value) for arg in self.arguments)})"
 
 
 class ContractCallMulticall3(ContractCall):
@@ -237,46 +234,3 @@ class ContractCallMulticall3(ContractCall):
         logger.info("%s: updated %s metrics for %s addresses", self, len(self.metrics), len(self.addresses))
 
         return results
-
-
-@dataclass
-class MetricsConfig:
-    calls: List[ContractCall]
-
-    @classmethod
-    def contract_call_class(cls):
-        if config.USE_MULTICALL3:
-            return ContractCallMulticall3
-        else:
-            return ContractCall
-
-    @classmethod
-    def load(cls, config: dict) -> "MetricsConfig":
-        """Load a metrics configuration from a dictionary, usually parsed from a yaml file"""
-        calls = []
-        for call in config["calls"]:
-            contract_call = cls.contract_call_class()(
-                contract_type=call["contract_type"],
-                function=call["function"],
-                arguments=[CallArgument.load(arg) for arg in call.get("arguments", [])],
-                addresses=NamedAddress.load_list(call["addresses"]),
-            )
-
-            for source, metric in call["metrics"].items():
-                CallMetricDefinition(
-                    name=metric["name"],
-                    description=metric["description"],
-                    type=metric.get("type", "GAUGE"),
-                    source=source,
-                    call=contract_call,
-                )
-
-            calls.append(contract_call)
-
-        return cls(calls=calls)
-
-    @classmethod
-    def load_yaml(cls, yaml_file: str) -> "MetricsConfig":
-
-        with open(yaml_file, "r") as f:
-            return cls.load(yaml.safe_load(f))
