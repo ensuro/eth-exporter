@@ -5,8 +5,7 @@ from typing import List, Union
 
 import yaml
 
-from . import config
-from . import multicall3
+from . import config, multicall3
 from .metrics import create_metric
 from .vendor.address_book import Address
 from .vendor.address_book import get_default as get_address_book
@@ -37,8 +36,8 @@ class NamedAddress:
                 raise ValueError(f"Cannot resolve '{value}' to an address")
 
     @classmethod
-    def load_list(cls, values: List[str]) -> List["NamedAddress"]:
-        return [cls(value) for value in values]
+    def load_list(cls, values: List[str] | str) -> List["NamedAddress"]:
+        return [cls(value) for value in values] if isinstance(values, list) else [cls(values)]
 
 
 class CallArgument:
@@ -205,7 +204,7 @@ class ContractCall:
         return results
 
     def __str__(self):
-        return f"{self.contract_type}.{self.function}({','.join(arg.value for arg in self.arguments)})"
+        return f"{self.contract_type}.{self.function}({','.join(str(arg.value) for arg in self.arguments)})"
 
 
 class ContractCallMulticall3(ContractCall):
@@ -253,8 +252,22 @@ class MetricsConfig:
     @classmethod
     def load(cls, config: dict) -> "MetricsConfig":
         """Load a metrics configuration from a dictionary, usually parsed from a yaml file"""
+        calls = cls._load_direct_calls(config.get("calls", []))
+        erc20_balance_calls = cls._load_erc20_calls(config.get("erc20_balance", {}))
+        erc4626_balance_calls = cls._load_erc4626_calls(config.get("erc4626_balance", {}))
+        pa_loan_calls = cls._load_pa_loan_calls(config.get("pa_loans", {}))
+
+        return cls(calls=calls + erc20_balance_calls + erc4626_balance_calls + pa_loan_calls)
+
+    @classmethod
+    def load_yaml(cls, yaml_file: str) -> "MetricsConfig":
+        with open(yaml_file, "r") as f:
+            return cls.load(yaml.safe_load(f))
+
+    @classmethod
+    def _load_direct_calls(cls, call_definitions) -> List[ContractCall]:
         calls = []
-        for call in config["calls"]:
+        for call in call_definitions:
             contract_call = cls.contract_call_class()(
                 contract_type=call["contract_type"],
                 function=call["function"],
@@ -272,11 +285,159 @@ class MetricsConfig:
                 )
 
             calls.append(contract_call)
-
-        return cls(calls=calls)
+        return calls
 
     @classmethod
-    def load_yaml(cls, yaml_file: str) -> "MetricsConfig":
+    def _load_erc20_calls(cls, erc20_calls: dict) -> List[ContractCall]:
+        calls = []
 
-        with open(yaml_file, "r") as f:
-            return cls.load(yaml.safe_load(f))
+        for metric_name, details in erc20_calls.items():
+            if details.get("total_supply_function", "totalSupply") is not None:
+                calls.append(cls._token_total_supply_call(details["address"], "erc20_total_supply"))
+
+            calls += cls._token_balance_calls(
+                details["address"], details["holders"], metric_name, details.get("metric", {})
+            )
+
+        return calls
+
+    @classmethod
+    def _load_erc4626_calls(cls, erc4626_calls: dict) -> List[ContractCall]:
+        calls = []
+
+        for metric_name, details in erc4626_calls.items():
+            total_supply_function = details.get("total_supply_function", "totalSupply")
+            if total_supply_function is not None:
+                calls.append(
+                    cls._token_total_supply_call(
+                        details["address"],
+                        "erc4626_total_supply",
+                        metric_description="Vault total supply in shares",
+                        function_name=total_supply_function,
+                    )
+                )
+            calls.append(
+                cls._vault_to_assets_call(
+                    details["address"], "erc4626_shares_to_assets", details.get("metric", {})
+                )
+            )
+
+            calls += cls._token_balance_calls(
+                details["address"], details["holders"], metric_name, details.get("metric", {})
+            )
+
+        return calls
+
+    @classmethod
+    def _load_pa_loan_calls(cls, pa_loans: dict) -> List[ContractCall]:
+        calls = []
+
+        for metric_name, details in pa_loans.items():
+            metric_config = details.get("metric", {})
+            for loan in details["loans"]:
+                # Get the loan limit on all borrowers
+                loan_limit_call = cls.contract_call_class()(
+                    contract_type="PremiumsAccount",
+                    function=details["limit_function"],
+                    arguments=[],
+                    addresses=NamedAddress.load_list(loan["borrower"]),
+                )
+                calls.append(loan_limit_call)
+                CallMetricDefinition(
+                    name=f"{metric_name}_limit",
+                    description=metric_config.get("description", "Premiums account loan limit"),
+                    type="GAUGE",
+                    source=f"{metric_name}_limit",
+                    call=loan_limit_call,
+                )
+
+                # Get the current loan for each borrower
+                borrower = loan["borrower"]
+                if not isinstance(borrower, list):
+                    borrower = [borrower]
+                for borrower in borrower:
+                    current_loan_call = cls.contract_call_class()(
+                        contract_type="EToken",
+                        function="getLoan",
+                        arguments=[AddressCallArgument(borrower, label="premiums_account")],
+                        addresses=NamedAddress.load_list([loan["etoken"]]),
+                    )
+                    calls.append(current_loan_call)
+                    CallMetricDefinition(
+                        name=metric_name,
+                        description=metric_config.get("description", "Premiums account loan"),
+                        type=metric_config.get("type", "GAUGE"),
+                        source=metric_name,
+                        call=current_loan_call,
+                    )
+
+        return calls
+
+    @classmethod
+    def _token_balance_calls(
+        cls, tokens: list[str], holders: list[str], metric_name: str, metric_config: dict
+    ):
+        calls = []
+        tokens = NamedAddress.load_list(tokens)
+        for holder in holders:
+            contract_call = cls.contract_call_class()(
+                contract_type="ERC4626",
+                function="balanceOf",
+                arguments=[AddressCallArgument(holder, label="holder")],
+                addresses=tokens,
+            )
+            calls.append(contract_call)
+            CallMetricDefinition(
+                name=metric_name,
+                description=metric_config.get("description", f"Balance of {tokens}"),
+                type=metric_config.get("type", "GAUGE"),
+                source=metric_name,
+                call=contract_call,
+            )
+        return calls
+
+    @classmethod
+    def _token_total_supply_call(
+        cls,
+        tokens: list[str],
+        metric_name: str,
+        metric_description="Token total supply",
+        function_name="totalSupply",
+    ) -> ContractCall:
+        """Gets token total supply"""
+        call = ContractCall(
+            contract_type="ERC20",
+            function=function_name,
+            arguments=[],
+            addresses=NamedAddress.load_list(tokens),
+        )
+        CallMetricDefinition(
+            name=metric_name,
+            description=metric_description,
+            type="GAUGE",
+            source=metric_name,
+            call=call,
+        )
+        return call
+
+    @classmethod
+    def _vault_to_assets_call(
+        cls, vaults: list[str], metric_name: str, metric_config: dict = None, function_name="convertToAssets"
+    ) -> ContractCall:
+        """Gets shares to assets conversion ratio for ERC4626 vaults"""
+        if metric_config is None:
+            metric_config = {}
+        call = ContractCall(
+            contract_type="ERC4626",
+            function=function_name,
+            arguments=[CallArgument(int(1e18))],
+            addresses=NamedAddress.load_list(vaults),
+        )
+        CallMetricDefinition(
+            name=metric_name,
+            description=metric_config.get("description", "Vault shares to assets conversion"),
+            type=metric_config.get("type", "GAUGE"),
+            source=metric_name,
+            call=call,
+        )
+        return call
