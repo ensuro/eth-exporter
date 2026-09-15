@@ -20,9 +20,7 @@ def erc20_balance_handler(metric_config: dict[str:ERC20BalanceConfig]) -> list[C
         total_supply_function = details.get("total_supply_function", "totalSupply")
         if total_supply_function is not None:
             calls.append(
-                create_total_supply_call(
-                    addresses, "erc20_total_supply", "ERC20 Total supply", total_supply_function
-                )
+                create_total_supply_call(addresses, "erc20_total_supply", "ERC20 Total supply", total_supply_function)
             )
 
         calls += create_erc20_balance_calls(addresses, details["holders"], metric_name, details["metric"])
@@ -30,8 +28,7 @@ def erc20_balance_handler(metric_config: dict[str:ERC20BalanceConfig]) -> list[C
     return calls
 
 
-class ERC4626BalanceConfig(ERC20BalanceConfig):
-    ...
+class ERC4626BalanceConfig(ERC20BalanceConfig): ...
 
 
 @HandlerRegistry.register_handler("erc4626_balance")
@@ -42,9 +39,7 @@ def erc4626_balance_handler(metric_config: dict[str:ERC4626BalanceConfig]) -> li
         total_supply_function = details.get("total_supply_function", "totalSupply")
         if total_supply_function is not None:
             calls.append(
-                create_total_supply_call(
-                    addresses, "erc4626_total_supply", "ERC20 Total supply", total_supply_function
-                )
+                create_total_supply_call(addresses, "erc4626_total_supply", "ERC20 Total supply", total_supply_function)
             )
 
         # Get the shares to assets conversion

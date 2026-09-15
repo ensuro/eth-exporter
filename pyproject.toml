@@ -8,5 +8,17 @@ build-backend = "setuptools.build_meta"
 # check out https://github.com/pypa/setuptools_scm
 version_scheme = "no-guess-dev"
 
-[tool.black]
-line-length = 110
+[tool.uv]
+exclude-newer = "14 days"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = ["E203"]
+exclude = [".tox", "build", "dist", ".eggs", "docs/conf.py"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["eth_exporter"]

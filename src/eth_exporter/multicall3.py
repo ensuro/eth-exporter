@@ -1,16 +1,17 @@
 import itertools
 from typing import Any
-from eth_utils.abi import get_abi_output_types
+
 from eth_abi.exceptions import (
     DecodingError,
 )
-from web3._utils.normalizers import (
-    BASE_RETURN_NORMALIZERS,
-)
+from eth_utils.abi import get_abi_output_types
 from web3._utils.abi import (
     map_abi_data,
     named_tree,
     recursive_dict_to_namedtuple,
+)
+from web3._utils.normalizers import (
+    BASE_RETURN_NORMALIZERS,
 )
 from web3.exceptions import (
     BadFunctionCallOutput,
@@ -81,9 +82,7 @@ def decode_return_data(w3, function, return_data) -> Any:
 
 async def aggregate3(w3, functions, block_identifier):
     multicall3 = w3.eth.contract(address=MULTICALL_ADDRESS, abi=MULTICALL_ABI, decode_tuples=True)
-    agg3 = multicall3.functions.aggregate3(
-        [(fn.address, True, fn._encode_transaction_data()) for fn in functions]
-    )
+    agg3 = multicall3.functions.aggregate3([(fn.address, True, fn._encode_transaction_data()) for fn in functions])
     results = await agg3.call(block_identifier=block_identifier)
     return [
         (

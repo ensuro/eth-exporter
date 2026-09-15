@@ -74,11 +74,7 @@ class AddressCallArgument(CallArgument):
 
     @property
     def labels(self) -> dict:
-        return (
-            {self.label: self.address.name, f"{self.label}_address": self.address.address}
-            if self.label
-            else {}
-        )
+        return {self.label: self.address.name, f"{self.label}_address": self.address.address} if self.label else {}
 
     def __str__(self):
         return self.address.name
