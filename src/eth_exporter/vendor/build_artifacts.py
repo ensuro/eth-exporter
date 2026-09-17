@@ -77,9 +77,9 @@ class Artifact:
                     length = ref["length"] * 2
 
                     # Sanity check
-                    assert LIBRARY_PLACEHOLDER_MATCHER.match(
-                        bytecode[start : start + length]
-                    ), f"Unexpected placeholder at position {start}: {bytecode[start:start + length]}"
+                    assert LIBRARY_PLACEHOLDER_MATCHER.match(bytecode[start : start + length]), (
+                        f"Unexpected placeholder at position {start}: {bytecode[start : start + length]}"
+                    )
 
                     # Replace the placeholder with the actual address
                     bytecode = bytecode[:start] + address + bytecode[start + length :]

@@ -31,6 +31,7 @@ class HandlerRegistry:
     def register_handler(cls, type_key: str):
         def do_register(handler: Callable[[dict], list[Call]]):
             cls._registry[type_key] = handler
+            return handler
 
         return do_register
 

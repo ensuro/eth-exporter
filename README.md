@@ -2,6 +2,24 @@
 
 Prometheus exporter of blockchain data
 
+## Development
+
+Requires Python 3.13 and [uv](https://docs.astral.sh/uv/):
+
+```sh
+pip install uv
+uv pip install -e . -r requirements.txt -r requirements-dev.txt
+
+uv pip compile requirements.in       # refresh pinned deps
+uv pip compile requirements-dev.in
+
+ruff check .    # lint
+ruff format .   # format (black-compatible, line-length 120)
+tox -e py       # run tests
+```
+
+Dependency resolution ignores releases newer than 14 days (`exclude-newer` in `pyproject.toml`).
+
 ## Running with docker
 
 A `compose.yaml` file is provided to run the app + prometheus and grafana in docker.
